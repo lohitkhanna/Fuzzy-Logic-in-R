@@ -1,0 +1,120 @@
+###################################################################
+###### Topic: Detecting duplicate company name              #######
+###### Algorithms: Soundex, Levenshtein, Damerau-Levenstein #######
+###### Date:                                                #######
+###### Author:                                              #######
+###################################################################
+
+# install.packages("stringdist")
+rm(list = ls())
+library(openxlsx)
+library(stringdist)
+
+company = read.xlsx("/Data Base/Registration Detail/Reg EDA part2.xlsx", sheet = "Sheet5")
+company = company[,4]
+company = company[!is.na(company)]
+
+company = data.frame(company = company, stringsAsFactors = F)
+
+company$process = gsub("\\.", "", company$company)
+company$process = gsub(",", "", company$process)
+company$process = gsub("-", " ", company$process)
+company$process = trimws(gsub("\\s+", " ", company$process))
+company$process = toupper(company$process)
+company$process = gsub("&", "AND", company$process)
+company$process = gsub("'", "", company$process)
+company$process = gsub('"', "", company$process)
+company$process = gsub("[[:punct:]]", "", company$process)
+
+# company$process = company[which(nchar(company) > 4)]
+# company = gsub("\\", "", company)
+company$process = gsub("/", "", company$process)
+company$process_condense = gsub(" ", "", company$process)        #Condensing
+
+unique_company_soundex = unique(company$process)
+unique_company_condense = unique(company$process_condense)
+
+t1 = Sys.time()
+
+distance_matrix = data.frame(company = unique_company_soundex, stringsAsFactors = F)
+distance_matrix1 = data.frame(company = unique_company_condense, stringsAsFactors = F)
+distance_matrix_dl = distance_matrix1
+
+#### Soundex Algo
+for(i in 1:(length(unique_company_soundex)-1))
+{
+  col_names = c(names(distance_matrix), unique_company_soundex[i])
+  dist = stringdist(unique_company_soundex[i], unique_company_soundex, method = "soundex")
+  distance_matrix = cbind(distance_matrix, dist)
+  
+  names(distance_matrix) = col_names
+}
+  
+
+#### Distance Algo's
+for(i in 1:(length(unique_company_condense)-1))
+{
+  col_names = c(names(distance_matrix1), unique_company_condense[i])
+  dist1 = stringdist(unique_company_condense[i], unique_company_condense, method = "lv")
+  dist2 = stringdist(unique_company_condense[i], unique_company_condense, method = "dl")
+  distance_matrix1 = cbind(distance_matrix1, dist1)
+  distance_matrix_dl = cbind(distance_matrix_dl, dist2)
+  
+  names(distance_matrix1) = col_names
+  names(distance_matrix_dl) = col_names
+}
+
+t2 = Sys.time()
+time_elapsed = t2 - t1
+write.csv(distance_matrix, "C:/Users/u294758/Desktop/Work/ISSA/Data Base/Registration Detail/distance.csv")
+
+distance_matrix[upper.tri(distance_matrix)] = NA
+distance_matrix1[upper.tri(distance_matrix1)] = NA
+distance_matrix_dl[upper.tri(distance_matrix1)] = NA
+
+t1 = Sys.time()
+similar_company_soundex = data.frame()
+similar_company_distance = data.frame()
+
+for(i in 2:dim(distance_matrix)[2])
+{
+  if(length(which(distance_matrix[,i] == 0)) > 0)
+  {
+    similar_company_soundex = rbind(similar_company_soundex, data.frame(company1 = names(distance_matrix)[i], company2 = distance_matrix[which(distance_matrix[,i] ==0),1], distance_soundex = distance_matrix[which(distance_matrix[,i] == 0),i]))
+  }
+}
+
+for(i in 2:dim(distance_matrix1)[2])
+{
+  if(length(which(distance_matrix1[,i] < 7)) > 0)
+  {
+    similar_company_distance = rbind(similar_company_distance, 
+                                     data.frame(company1 = names(distance_matrix1)[i], 
+                                                company2 = distance_matrix1[which(distance_matrix1[,i] < 7),1], 
+                                                distance_lv = distance_matrix1[which(distance_matrix1[,i] < 7),i],
+                                                distance_matrix_dl = distance_matrix_dl[which(distance_matrix1[,i] < 7),i]))
+  }
+}
+
+
+t2 = Sys.time()
+t2-t1
+length(which(distance_matrix[,-1] ==0))
+write.xlsx(list(similar_company_soundex, similar_company_distance, company), "/Data Base/Registration Detail/similar_company_final_metric.xlsx")
+
+
+######### Condensing ###################
+
+# 
+# head(company) 
+# length(unique(company))     #9910
+# 
+# head(company1)
+# length(unique(company1))    #9140 AFTER CONDENSING
+# 
+# 
+# 
+# 
+# company[which(grepl("AND",company)== T)]
+
+
